@@ -31,8 +31,11 @@ class card:
             return cardChar[self.rank] + str(self.suit)
         return str(self.rank) + str(self.suit)
 
-# HAND STRENGTH FUNCTIONS
-# returns cardList or 0 if pair not found
+# ---- HAND STRENGTH FUNCTIONS ---- #
+# All return "cardList" object or 0 #
+# if specified hand isn't found.    #
+# --------------------------------- #
+
 def getPair(h):
     card_list = sorted(h.cards, key=lambda x: x.rank, reverse=True)
     for i in range(len(card_list)-1):
@@ -40,7 +43,6 @@ def getPair(h):
             return cardList([card_list[i], card_list[i+1]])
     return 0
 
-# returns cardList or 0 if pair not found
 def getTwoPair(h):
     # Check for first pair and save cards
     if not getPair(h):
@@ -98,12 +100,20 @@ def getFlush(h):
     diamonds = [c for c in card_list if c.suit == 'd']
 
     # return highest-ranking flush or 0 if none are found
-    high_rank = 0
     result = 0
     for suit in [spades, clubs, hearts, diamonds]:
-        if len(suit) >= 5 and suit[0].rank > high_rank:
-            high_rank = suit[0].rank
-            result = cardList(suit[0:5])
+        if len(suit) >= 5:
+            if result == 0:
+                result = cardList(suit[0:5])
+            else:
+                i = 0
+                outranked = False
+                while not outranked and i < 5:
+                    if suit[i].rank > result.cards[i].rank:
+                        result = cardList(suit[0:5])
+                        outranked = True
+                    elif suit[i].rank < result.cards[i].rank:
+                        outranked = True
     return result
 
 def getFullHouse(h):
@@ -130,10 +140,9 @@ def getFourOfAKind(h):
     return 0
 
 def getStraightFlush(h):
-    # This function finds royal flushes too since
-    # they are simply the highest straight flush.
     hand = h
     flush = getFlush(h)
+    removed_aces = []
     # While there exists a flush in the hand...
     while flush:
         # Check if the flush is also a straight
@@ -145,15 +154,86 @@ def getStraightFlush(h):
             # cause the hand to appear as "Ax5x4x3x2x".
             return getStraight(flush)
         # Not a straight flush. Remove highest flush card and look again.
+        if flush.cards[0].rank == 14:
+            removed_aces.append(flush.cards[0])
+
         hand = hand.removeCards([flush.cards[0]])
         flush = getFlush(hand)
 
+    # Check for 5-high straight (need to do
+    # this because the above code removes
+    # aces from the card list if they don't
+    # make a royal flush).
+    for ace in removed_aces:
+        # Add ace back into the current hand
+        hand.cards.append(ace)
+        if getStraight(getFlush(hand)):
+            return getStraight(getFlush(hand))
+            # Note: This should always work fine. It is
+            # implied that if an ace was removed, then
+            # it had made a flush earlier. It is also
+            # implied that if a flush was made, then
+            # there should be at least one "four to a
+            # flush" once we exit the previous while
+            # loop. However, we could make this code
+            # safer by asserting that the hand still
+            # makes a flush when the ace is added back
+            # (it always should) so that we don't
+            # accidentally call getStraight() on the
+            # value 0.
     return 0
 
 def getRoyalFlush(h):
-    if getStraightFlush(h).cards[0].rank == 14:
-        return getStraightFlush(h)
+    straight_flush = getStraightFlush(h)
+    if straight_flush and straight_flush.cards[0].rank == 14:
+        return straight_flush
     return 0
+
+# return strongest 5-card hand from "h"
+def get5CardHand(h):
+    if getFlush(h):
+        if getStraightFlush(h):
+            if getRoyalFlush(h):
+                return getRoyalFlush(h)
+            return getStraightFlush(h)
+        if getFourOfAKind(h):
+            # Note: Quads AND a flush should
+            # not be possible in the same hand
+            # in NLH. The function is written
+            # this way to allow for portability
+            # and use in other variants of poker.
+            card_list = sorted(h.removeCards(getFourOfAKind(h).cards).cards, key=lambda x: x.rank, reverse=True)
+            return cardList(getFourOfAKind(h).cards + card_list[0:1])
+        if getFullHouse(h):
+            # [See above note] The same applies
+            # for full houses and flushes.
+            return getFullHouse(h)
+        return getFlush(h)
+
+    if getStraight(h):
+        if getFourOfAKind(h):
+            # Same note applies.
+            card_list = sorted(h.removeCards(getFourOfAKind(h).cards).cards, key=lambda x: x.rank, reverse=True)
+            return cardList(getFourOfAKind(h).cards + card_list[0:1])
+        if getFullHouse(h):
+            return getFullHouse(h)
+        return getStraight(h)
+
+    if getPair(h):
+        if getThreeOfAKind(h):
+            if getFourOfAKind(h):
+                card_list = sorted(h.removeCards(getFourOfAKind(h).cards).cards, key=lambda x: x.rank, reverse=True)
+                return cardList(getFourOfAKind(h).cards + card_list[0:1])
+            card_list = sorted(h.removeCards(getThreeOfAKind(h).cards).cards, key=lambda x: x.rank, reverse=True)
+            return cardList(getThreeOfAKind(h).cards + card_list[0:2])
+        if getTwoPair(h):
+            card_list = sorted(h.removeCards(getTwoPair(h).cards).cards, key=lambda x: x.rank, reverse=True)
+            return cardList(getTwoPair(h).cards + card_list[0:1])
+        card_list = sorted(h.removeCards(getPair(h).cards).cards, key=lambda x: x.rank, reverse=True)
+        return cardList(getPair(h).cards + card_list[0:3])
+
+    return cardList(h.cards[0:5]) # order by rank, also out of bounds?
+
 
 # MAIN FUNCTION
 def main():
@@ -163,7 +243,7 @@ def main():
         for rank in range(2, 15):
             deck.insert(0, card(rank, suit))
 
-    test_hand = cardList([deck[8], deck[12], deck[1], deck[40], deck[41], deck[42], deck[43], deck[20], deck[25], deck[11], deck[9], deck[10]])
+    test_hand = cardList([deck[35], deck[1], deck[40], deck[0], deck[38], deck[30], deck[14], deck[13], deck[24], deck[23], deck[22], deck[25], deck[27]])
     print(test_hand)
 
     print("Pair:", getPair(test_hand))
@@ -175,12 +255,12 @@ def main():
     print("Quads:", getFourOfAKind(test_hand))
     print("Straight Flush:", getStraightFlush(test_hand))
     print("Royal Flush:", getRoyalFlush(test_hand))
+    print("Best Hand:", get5CardHand(test_hand))
 
 if __name__ == '__main__':
     main()
 
 # REMINDERS:
-# May need to return multiple values in funcs in case of ties (ex. if same one pair, need to check kicker)
 # Two pair returns even when there's a full house
 # Trips returns when there are quads and full houses.
 # Flush may return highest flush instead of straight flush
