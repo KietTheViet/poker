@@ -67,28 +67,24 @@ def getThreeOfAKind(h):
     return 0
 
 def getStraight(h):
-    hand = sorted(h, key=lambda x: x.rank, reverse=True)
+    # Create list of cards with no duplicate rankings
+    card_list = []
+    rank_list = []
+    for c in sorted(h.cards, key=lambda x: x.rank, reverse=True):
+        if c.rank not in rank_list:
+            card_list.append(c)
+            rank_list.append(c.rank)
 
-    # remove duplicate ranks
-    # CODE HERE
+    # Find highest straight
+    for i in range(len(card_list)-4):
+        if all(False for j in range(0,4) if card_list[i+j].rank != card_list[i+j+1].rank + 1):
+            return cardList(card_list[i:i + 5])
 
-    for i in range(len(hand)-4):
-        straight = True
-        for j in range(hand[i].rank, i-5):
-            if hand[j].rank != hand[j+1].rank + 1:
-                straight = False
-        if straight:
-            return hand[i].rank
-        # DUPLICATE RANKS CAUSE PROBLEMS
-
-    # Check for 5-high straight (ace is considered low)
-    if hand[0].rank == 14 and hand[-1].rank == 2:
-        straight = True
-        for i in range(-4, -1):
-            if hand[j].rank != hand[j + 1].rank + 1:
-                straight = False
-            if straight:
-                return 5
+    # If an ace is present, check for 5-high straight
+    if card_list[0].rank == 14:
+        # make sure there are five or more cards, then check ranks of the 4 lowest
+        if len(card_list) >= 5 and all(False for i in range(1,5) if card_list[-i].rank != i+1):
+            return cardList([card_list[-4], card_list[-3], card_list[-2], card_list[-1], card_list[0]])
 
     return 0
 
@@ -134,11 +130,30 @@ def getFourOfAKind(h):
     return 0
 
 def getStraightFlush(h):
-    pass
+    # This function finds royal flushes too since
+    # they are simply the highest straight flush.
+    hand = h
+    flush = getFlush(h)
+    # While there exists a flush in the hand...
+    while flush:
+        # Check if the flush is also a straight
+        if getStraight(flush):
+            # NOTE: Must return "getStraight(flush)" instead
+            # of simply "flush" because if the straight flush
+            # is 5-high we have to make sure the 5 is at the
+            # 0th index. Returning "flush" in this case would
+            # cause the hand to appear as "Ax5x4x3x2x".
+            return getStraight(flush)
+        # Not a straight flush. Remove highest flush card and look again.
+        hand = hand.removeCards([flush.cards[0]])
+        flush = getFlush(hand)
+
+    return 0
 
 def getRoyalFlush(h):
-    pass
-
+    if getStraightFlush(h).cards[0].rank == 14:
+        return getStraightFlush(h)
+    return 0
 
 # MAIN FUNCTION
 def main():
@@ -148,16 +163,18 @@ def main():
         for rank in range(2, 15):
             deck.insert(0, card(rank, suit))
 
-    test_hand = cardList([deck[0], deck[15], deck[3], deck[14], deck[2], deck[16], deck[41], deck[20], deck[25], deck[24], deck[6], deck[7]])
+    test_hand = cardList([deck[8], deck[12], deck[1], deck[40], deck[41], deck[42], deck[43], deck[20], deck[25], deck[11], deck[9], deck[10]])
     print(test_hand)
 
     print("Pair:", getPair(test_hand))
     print("Two Pair:", getTwoPair(test_hand))
     print("Trips:", getThreeOfAKind(test_hand))
-    print("Quads:", getFourOfAKind(test_hand))
-    # print("Straight:", getStraight(hand))
+    print("Straight:", getStraight(test_hand))
     print("Flush:", getFlush(test_hand))
     print("Full House:", getFullHouse(test_hand))
+    print("Quads:", getFourOfAKind(test_hand))
+    print("Straight Flush:", getStraightFlush(test_hand))
+    print("Royal Flush:", getRoyalFlush(test_hand))
 
 if __name__ == '__main__':
     main()
